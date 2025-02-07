@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Analysis Chatbot</title>
+    <script src="https://js.puter.com/v2/"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+        }
+        button {
+            background: #ff4081;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            margin: 10px;
+        }
+        button:disabled {
+            background: gray;
+        }
+        input[type='file'] {
+            display: none;
+        }
+        #imageList img {
+            max-width: 100px;
+            margin: 5px;
+            border-radius: 5px;
+        }
+        .results {
+            max-height: 300px;
+            overflow-y: auto;
+            text-align: left;
+            padding: 10px;
+            border: 1px solid #ff4081;
+            margin-top: 10px;
+            background: #2a2a2a;
+        }
+        .loading {
+            display: none;
+            color: #ff4081;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Image Analysis Chatbot</h1>
+        <button onclick="document.getElementById('fileInput').click()">Choose Images</button>
+        <input type="file" id="fileInput" accept="image/*" multiple>
+        <div id="imageList"></div>
+        <button id="analyzeBtn" onclick="analyzeImages()" disabled>Analyze Images</button>
+        <div class="loading" id="loading">Analyzing images...</div>
+        <div class="results" id="response"></div>
+        <button id="sendToCurator" onclick="sendToTelegram()">Send to Curator</button>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const imageList = document.getElementById('imageList');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const responseDiv = document.getElementById('response');
+        const loadingDiv = document.getElementById('loading');
+        let images = [];
+        let results = [];
+
+        fileInput.addEventListener('change', function(e) {
+            images = Array.from(e.target.files);
+            imageList.innerHTML = '';
+            images.forEach(file => {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                imageList.appendChild(img);
+            });
+            analyzeBtn.disabled = images.length === 0;
+        });
+
+        async function analyzeImages() {
+            if (images.length === 0) return;
+            loadingDiv.style.display = 'block';
+            analyzeBtn.disabled = true;
+
+            for (const file of images) {
+                try {
+                    const dataURL = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+
+                    const messages = [{
+                        role: "user",
+                        content: [
+                            { type: "text", text: "Analyze this image in complete detail. Transcribe the exact text as it is, without any modifications, omissions, or rephrasings. After a clear gap, create a list of key points starting with numbers." },
+                            { type: "image_url", image_url: { url: dataURL } }
+                        ]
+                    }];
+
+                    const response = await puter.ai.chat(messages, false, { model: 'deepseek-chat' });
+                    results.push(response.message.content);
+                    responseDiv.innerHTML += `<p>${response.message.content}</p>`;
+                } catch (error) {
+                    responseDiv.innerHTML += `<p style='color: red;'>Error analyzing an image.</p>`;
+                }
+            }
+
+            loadingDiv.style.display = 'none';
+            analyzeBtn.disabled = false;
+            images = []; // Reset images after processing
+        }
+
+        async function sendToTelegram() {
+            const botToken = '7447671480:AAFtEWOh_y3k5UpIeUnV-5fJdV3L-RlqC6M';
+            const chatId = '906269717';
+            const message = results.join("\n\n---\n\n");
+            
+            if (!message) return alert("No analysis to send.");
+
+            try {
+                await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId, text: message })
+                });
+                alert("Sent to Curator successfully!");
+                results = []; // Clear after sending
+                responseDiv.innerHTML = '';
+            } catch (error) {
+                alert("Failed to send to Curator.");
+                console.error("Telegram Error:", error);
+            }
+        }
+    </script>
+</body>
+</html>
