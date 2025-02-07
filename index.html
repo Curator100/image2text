@@ -111,7 +111,7 @@
                         ]
                     }];
 
-                    const response = await puter.ai.chat(messages, false, { model: 'gpt-4o-mini' });
+                    const response = await puter.ai.chat(messages, false, { model: 'deepseek-chat' });
                     results.push(response.message.content);
                     responseDiv.innerHTML += `<p>${response.message.content}</p>`;
                 } catch (error) {
